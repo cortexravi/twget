@@ -1,4 +1,5 @@
 mod auth;
+mod browser;
 mod search;
 mod tweet;
 
@@ -16,13 +17,13 @@ struct Cli {
 enum Commands {
     /// Fetch a single tweet by URL or ID
     Tweet {
-        /// Tweet URL (https://twitter.com/user/status/ID) or bare ID
+        /// Tweet URL (https://x.com/user/status/ID) or bare ID
         url_or_id: String,
         /// Print only the tweet text
         #[arg(long)]
         text: bool,
     },
-    /// Fetch a tweet and its full reply chain
+    /// Fetch a tweet and its reply chain
     Thread {
         /// Tweet URL or bare ID
         url_or_id: String,
@@ -46,17 +47,16 @@ enum Commands {
     },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
-    let mut scraper = auth::get_scraper().await?;
+    let (auth_token, ct0) = auth::get_credentials()?;
 
     match cli.command {
         Commands::Tweet { url_or_id, text } => {
-            tweet::cmd_tweet(&scraper, &url_or_id, text).await?;
+            tweet::cmd_tweet(&auth_token, &ct0, &url_or_id, text)?;
         }
         Commands::Thread { url_or_id, text } => {
-            tweet::cmd_thread(&mut scraper, &url_or_id, text).await?;
+            tweet::cmd_thread(&auth_token, &ct0, &url_or_id, text)?;
         }
         Commands::Search {
             query,
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
             since,
             text,
         } => {
-            search::cmd_search(&mut scraper, &query, limit, since.as_deref(), text).await?;
+            search::cmd_search(&auth_token, &ct0, &query, limit, since.as_deref(), text)?;
         }
     }
 

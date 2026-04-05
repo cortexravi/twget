@@ -1,9 +1,9 @@
-use agent_twitter_client::search::SearchMode;
-use agent_twitter_client::scraper::Scraper;
 use anyhow::{bail, Context, Result};
 use chrono::{Duration, Utc};
+use serde_json::json;
 
-use crate::tweet::{tweet_to_output, TweetOutput};
+use crate::browser::{cookie_js, last_eval, run_batch, url_encode};
+use crate::tweet::TweetOutput;
 
 fn parse_since(duration: &str) -> Result<String> {
     let dt = if let Some(h) = duration.strip_suffix('h') {
@@ -18,8 +18,9 @@ fn parse_since(duration: &str) -> Result<String> {
     Ok(dt.format("%Y-%m-%d").to_string())
 }
 
-pub async fn cmd_search(
-    scraper: &mut Scraper,
+pub fn cmd_search(
+    auth_token: &str,
+    ct0: &str,
     query: &str,
     limit: i32,
     since: Option<&str>,
@@ -31,12 +32,38 @@ pub async fn cmd_search(
         full_query = format!("{} since:{}", full_query, since_date);
     }
 
-    let response = scraper
-        .search_tweets(&full_query, limit, SearchMode::Latest, None)
-        .await
-        .context("Search failed")?;
+    let search_url = format!("https://x.com/search?q={}&f=live", url_encode(&full_query));
 
-    let tweets: Vec<TweetOutput> = response.tweets.iter().map(tweet_to_output).collect();
+    let extract_js = format!(
+        r#"JSON.stringify(
+    Array.from(document.querySelectorAll('article[data-testid="tweet"]'))
+        .slice(0, {limit})
+        .map(a => {{
+            const link = a.querySelector('a[href*="/status/"]');
+            const id = link?.href?.match(/\/status\/(\d+)/)?.[1];
+            const authorEl = a.querySelector('[data-testid="User-Name"] a');
+            const author = authorEl?.href?.match(/x\.com\/([^/?]+)/)?.[1];
+            const text = a.querySelector('[data-testid="tweetText"]')?.innerText;
+            const time = a.querySelector('time')?.getAttribute('datetime');
+            return {{ id, author, text, created_at: time }};
+        }})
+        .filter(t => t.id && t.text)
+)"#,
+        limit = limit
+    );
+
+    let commands = json!([
+        ["open", "https://x.com"],
+        ["eval", cookie_js(auth_token, ct0)],
+        ["open", search_url],
+        ["wait", "article[data-testid='tweet']"],
+        ["eval", extract_js]
+    ]);
+
+    let results = run_batch(&commands)?;
+    let raw = last_eval(&results).context("No search results returned")?;
+    let tweets: Vec<TweetOutput> =
+        serde_json::from_str(raw).context("Failed to parse search results")?;
 
     if text_only {
         for (i, t) in tweets.iter().enumerate() {
