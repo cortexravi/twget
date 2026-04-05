@@ -19,7 +19,25 @@ cargo build --release
 
 ## Authentication
 
-Set the following environment variables before first use:
+### Option 1: Config file (recommended)
+
+Create `~/.config/twget/config.toml`:
+
+```toml
+[twitter]
+username = "your_username"
+email = "your_email@example.com"
+password = "your_password"
+```
+
+```bash
+mkdir -p ~/.config/twget
+chmod 700 ~/.config/twget
+# create the file, then:
+chmod 600 ~/.config/twget/config.toml
+```
+
+### Option 2: Environment variables
 
 ```bash
 export TWITTER_USERNAME="your_username"
@@ -27,7 +45,11 @@ export TWITTER_EMAIL="your_email@example.com"
 export TWITTER_PASSWORD="your_password"
 ```
 
-Session cookies are cached to `~/.twget/cookies.json` after the first login — subsequent runs will not re-authenticate unless the session expires.
+Config file takes precedence. Individual fields can be mixed — e.g. `username` and `email` in the config file, `TWITTER_PASSWORD` as an env var.
+
+### Session caching
+
+After the first login, cookies are cached to `~/.twget/cookies.json` (mode 0600). Subsequent runs skip re-authentication until the session expires.
 
 ## Usage
 
@@ -112,6 +134,7 @@ All subcommands default to **JSON** output for easy piping into other tools. Use
 - [`clap`](https://crates.io/crates/clap) — CLI argument parsing
 - [`tokio`](https://crates.io/crates/tokio) — async runtime
 - [`serde_json`](https://crates.io/crates/serde_json) — JSON serialization
+- [`toml`](https://crates.io/crates/toml) — config file parsing
 
 ---
 
