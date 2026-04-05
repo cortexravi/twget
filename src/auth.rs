@@ -2,6 +2,7 @@ use agent_twitter_client::scraper::Scraper;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
+use std::io::Write;
 
 fn cookie_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -44,7 +45,22 @@ async fn login_and_save(scraper: &mut Scraper) -> Result<()> {
         .get_cookie_string()
         .await
         .context("Failed to retrieve session cookies")?;
-    fs::write(&path, &cookie_str).context("Failed to save cookie cache")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .context("Failed to open cookie file")?;
+        f.write_all(cookie_str.as_bytes()).context("Failed to write cookies")?;
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(&path, &cookie_str).context("Failed to save cookie cache")?;
+    }
 
     Ok(())
 }

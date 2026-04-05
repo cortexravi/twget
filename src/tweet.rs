@@ -61,7 +61,9 @@ pub async fn cmd_thread(scraper: &mut Scraper, url_or_id: &str, text_only: bool)
 
     let mut tweets = vec![tweet_to_output(&root)];
 
-    // Append any thread replies attached to the root
+    // Append any thread replies attached to the root.
+    // Note: root.thread is a shallow list of direct replies from the API response —
+    // it does not recursively walk nested reply chains.
     for t in &root.thread {
         tweets.push(tweet_to_output(t));
     }
