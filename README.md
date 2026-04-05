@@ -1,6 +1,6 @@
 # twget
 
-A minimal Rust CLI for fetching tweets from Twitter/X — no official API key required. Uses cookie-based authentication via your existing Twitter account.
+A minimal Rust CLI for fetching tweets from Twitter/X — no official API key required.
 
 ## Installation
 
@@ -14,14 +14,39 @@ Or build from source:
 git clone https://github.com/cortexravi/twget
 cd twget
 cargo build --release
-# Binary at ./target/release/twget
 ```
 
 ## Authentication
 
-### Option 1: Config file (recommended)
+### Option 1: Browser cookies (recommended)
 
-Create `~/.config/twget/config.toml`:
+Twitter blocks programmatic logins. The reliable approach is to extract two cookies from your logged-in browser session and put them in the config file.
+
+**How to get your cookies:**
+1. Open Twitter/X in your browser and log in
+2. Open DevTools → Application → Cookies → `https://x.com`
+3. Copy the values of `auth_token` and `ct0`
+
+**`~/.config/twget/config.toml`:**
+```toml
+[twitter]
+auth_token = "your_auth_token_value"
+ct0 = "your_ct0_value"
+```
+
+```bash
+mkdir -p ~/.config/twget && chmod 700 ~/.config/twget
+# create the file, then:
+chmod 600 ~/.config/twget/config.toml
+```
+
+These two cookies are all that's needed. No session caching required with this method.
+
+---
+
+### Option 2: Username/password (fallback, unreliable)
+
+Twitter frequently returns 401 on programmatic logins. Use this only if cookie auth isn't an option.
 
 ```toml
 [twitter]
@@ -30,26 +55,11 @@ email = "your_email@example.com"
 password = "your_password"
 ```
 
-```bash
-mkdir -p ~/.config/twget
-chmod 700 ~/.config/twget
-# create the file, then:
-chmod 600 ~/.config/twget/config.toml
-```
+Or via environment variables: `TWITTER_USERNAME`, `TWITTER_EMAIL`, `TWITTER_PASSWORD`.
 
-### Option 2: Environment variables
+On success, the session is cached to `~/.twget/cookies.json` (mode 0600).
 
-```bash
-export TWITTER_USERNAME="your_username"
-export TWITTER_EMAIL="your_email@example.com"
-export TWITTER_PASSWORD="your_password"
-```
-
-Config file takes precedence. Individual fields can be mixed — e.g. `username` and `email` in the config file, `TWITTER_PASSWORD` as an env var.
-
-### Session caching
-
-After the first login, cookies are cached to `~/.twget/cookies.json` (mode 0600). Subsequent runs skip re-authentication until the session expires.
+---
 
 ## Usage
 
@@ -77,8 +87,6 @@ twget tweet 1234567890 --text
 
 ### Fetch a full thread
 
-Fetches the original tweet plus its complete reply chain.
-
 ```bash
 twget thread https://twitter.com/user/status/1234567890
 twget thread 1234567890
@@ -87,13 +95,11 @@ twget thread 1234567890
 twget thread 1234567890 --text
 ```
 
-**JSON output:** array of tweet objects in order.
+JSON output: array of tweet objects in order.
 
 ---
 
 ### Search tweets
-
-Search by keyword, hashtag, or phrase.
 
 ```bash
 twget search "rolling puts"
@@ -106,17 +112,16 @@ twget search "0DTE" --text
 ```
 
 **Flags:**
-- `--limit <n>` — max results to return (default: 20)
-- `--since <duration>` — filter to tweets within this window (`24h`, `7d`, `30d`)
-- `--text` — plain readable output instead of JSON
+- `--limit <n>` — max results (default: 20)
+- `--since <duration>` — filter window: `24h`, `7d`, `30d`
+- `--text` — plain output instead of JSON
 
 ---
 
 ## Output format
 
-All subcommands default to **JSON** output for easy piping into other tools. Use `--text` for human-readable output.
+All subcommands default to JSON. Use `--text` for human-readable output.
 
-**Tweet object schema:**
 ```json
 {
   "id": "string",
@@ -128,18 +133,7 @@ All subcommands default to **JSON** output for easy piping into other tools. Use
 
 ---
 
-## Dependencies
-
-- [`agent-twitter-client`](https://crates.io/crates/agent-twitter-client) — cookie-based Twitter internal API client
-- [`clap`](https://crates.io/crates/clap) — CLI argument parsing
-- [`tokio`](https://crates.io/crates/tokio) — async runtime
-- [`serde_json`](https://crates.io/crates/serde_json) — JSON serialization
-- [`toml`](https://crates.io/crates/toml) — config file parsing
-
----
-
 ## Notes
 
-- This tool uses Twitter's **internal (unofficial) API**. It may break if Twitter changes its internals.
-- Usage is subject to Twitter's Terms of Service. Intended for personal and research use.
-- `--since` validation is performed after authentication — passing an invalid duration will error after login.
+- Uses Twitter's **internal (unofficial) API** via [`agent-twitter-client`](https://crates.io/crates/agent-twitter-client). May break if Twitter changes internals.
+- Intended for personal and research use.
